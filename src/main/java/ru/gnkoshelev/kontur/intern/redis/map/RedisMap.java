@@ -3,6 +3,7 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -14,17 +15,29 @@ public class RedisMap implements Map<String,String> {
     private final int connectionPort = 6379;
     private JedisPool jedisPool;
     private String hmapName;
-    private final String baseKeyName = "redis_map";
+    private final String baseKeyName = "redis_map:";
+    private final String  counterBase = "change_counter:";
+    private String changeCounterName;
+    //многопоточность?
+    private Set<String> keySet = null;
+    private Long changeCounter;
 
     //перенести из конструктора
     RedisMap() {
         jedisPool = new JedisPool(connectionIp, connectionPort);
         //зациклить
         try (Jedis jedis = jedisPool.getResource()) {
+            jedis.auth("sOmE_sEcUrE_pAsS");
            Long number = jedis.incr("map_counter");
-           hmapName = baseKeyName + ":" + number.toString();
+           //string builder
+            changeCounterName = counterBase + number.toString();
+           jedis.set(changeCounterName,  "0");
+           hmapName = baseKeyName + number.toString();
         }
     }
+
+    public void init() {}
+
 
     @Override
     public int size() {
@@ -59,8 +72,9 @@ public class RedisMap implements Map<String,String> {
             keys.add("0");
             List<String> params = new ArrayList<>(1);
             params.add(value.toString());
+            params.add(hmapName);
             //из файла+
-            result = jedis.eval("local val = \"12\" local values = redis.call(\"HVALS\", \"user:1000\") for i, name in ipairs(values) do if name == val then return 1 end end return 0", keys, params);
+            result = jedis.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", keys, params);
         }
         if(result instanceof Integer) {
             Integer castedResult = (Integer)result;
@@ -80,17 +94,32 @@ public class RedisMap implements Map<String,String> {
         return null;
     }
 
+    //what to return?
     @Override
     public String put(String key, String value) {
         try (Jedis jedis = jedisPool.getResource()) {
             jedis.hset(hmapName, key, value);
+            changeCounter = jedis.incr(changeCounterName);
+            if(keySet != null) {
+                keySet.add(key);
+            }
+
         }
         return value;
     }
 
     @Override
     public String remove(Object key) {
-        throw new UnsupportedOperationException();
+        //String value;
+        try (Jedis jedis = jedisPool.getResource()) {
+         //   value = jedis.hdel(hmapName, key.toString());
+            changeCounter = jedis.incr(changeCounterName);
+            if(keySet != null) {
+                keySet.remove(key.toString());
+            }
+        }
+       // return value;
+        return null;
     }
 
     @Override
@@ -98,23 +127,34 @@ public class RedisMap implements Map<String,String> {
         try (Jedis jedis = jedisPool.getResource()) {
             Map<String, String> values = m.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Object::toString));
             jedis.hmset(hmapName, values);
+            changeCounter = jedis.incr(changeCounterName);
+            if(keySet != null)
+                keySet.addAll(m.keySet());
         }
     }
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException();
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.hdel(hmapName);
+            if(keySet != null)
+                keySet.clear();
+        }
     }
 
     @Override
     public Set<String> keySet() {
-        Set<String> keys;
-        try (Jedis jedis = jedisPool.getResource()) {
-            keys = jedis.hkeys(hmapName);
+        if(keySet == null) {
+            Set<String> keys;
+            try (Jedis jedis = jedisPool.getResource()) {
+                keys = jedis.hkeys(hmapName);
+                keySet = new RedisSet(keys, jedisPool, hmapName, changeCounter, changeCounterName);
+            }
         }
-        return keys;
+        return keySet;
     }
 
+    //переписать
     @Override
     public Collection<String> values() {
         List<String> values;
@@ -126,10 +166,12 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public Set<Entry<String, String>> entrySet() {
-        Map<String, String> m;
+       /* Map<String, String> m;
         try (Jedis jedis = jedisPool.getResource()) {
             m = jedis.hgetAll(hmapName);
         }
         return m.entrySet();
+        */
+       return null;
     }
 }
