@@ -1,7 +1,9 @@
 package ru.gnkoshelev.kontur.intern.redis.map;
 
+import javafx.application.Platform;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.Transaction;
 
 import java.lang.ref.WeakReference;
 import java.util.*;
@@ -13,30 +15,38 @@ import java.util.stream.Collectors;
 public class RedisMap implements Map<String,String> {
     private final String connectionIp = "127.0.0.1";
     private final int connectionPort = 6379;
-    private JedisPool jedisPool;
-    private String hmapName;
     private final String baseKeyName = "redis_map:";
     private final String  counterBase = "change_counter:";
+    private final String password = "sOmE_sEcUrE_pAsS";
+    private final String mapCounter = "map_counter";
+
+    private JedisPool jedisPool;
+    private String hmapName;
     private String changeCounterName;
-    //многопоточность?
-    private Set<String> keySet = null;
-    private Long changeCounter;
+    //private Long changeCounter;
+    private LinkedHashSet<String> keySet = null;
+    private WeakReference<CleanupClass> cleaner;
+    private MapParams mapParams;
 
     //перенести из конструктора
     RedisMap() {
         jedisPool = new JedisPool(connectionIp, connectionPort);
         //зациклить
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.auth("sOmE_sEcUrE_pAsS");
-           Long number = jedis.incr("map_counter");
-           //string builder
+            jedis.auth(password);
+            //transaction??
+            Long number = jedis.incr(mapCounter);
             changeCounterName = counterBase + number.toString();
-           jedis.set(changeCounterName,  "0");
-           hmapName = baseKeyName + number.toString();
+            jedis.set(changeCounterName,  "0");
+            hmapName = baseKeyName + number.toString();
+            mapParams = new MapParams(hmapName, changeCounterName, 0L);
+
+            CleanupClass cleanupClass = new CleanupClass(hmapName, changeCounterName, jedisPool);
+            cleaner = new WeakReference<>(cleanupClass);
+            RedisMapCleaner.register(this, cleanupClass);
+            Runtime.getRuntime().addShutdownHook(new Thread(cleanupClass));
         }
     }
-
-    public void init() {}
 
 
     @Override
@@ -94,40 +104,58 @@ public class RedisMap implements Map<String,String> {
         return null;
     }
 
+    //do redis operation and counter incr in one operation
     //what to return?
     @Override
     public String put(String key, String value) {
+        String previousValue = null;
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.hset(hmapName, key, value);
-            changeCounter = jedis.incr(changeCounterName);
+            Transaction transaction = jedis.multi();
+            transaction.hget(hmapName, key);
+            transaction.hset(hmapName, key, value);
+            transaction.incr(changeCounterName);
+            List<Object> result = transaction.exec();
+
             if(keySet != null) {
                 keySet.add(key);
             }
-
+            mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
+            if(result.get(0) != null)
+                previousValue = result.get(0).toString();
         }
-        return value;
+        return previousValue;
     }
 
     @Override
     public String remove(Object key) {
-        //String value;
+        String prevValue = null;
         try (Jedis jedis = jedisPool.getResource()) {
-         //   value = jedis.hdel(hmapName, key.toString());
-            changeCounter = jedis.incr(changeCounterName);
+            Transaction transaction = jedis.multi();
+            transaction.hget(hmapName, key.toString());
+            transaction.hdel(hmapName, key.toString());
+            transaction.incr(changeCounterName);
+            List<Object> result = transaction.exec();
+
+            mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
+            if(result.get(0) != null)
+                prevValue = result.get(0).toString();
             if(keySet != null) {
                 keySet.remove(key.toString());
             }
         }
-       // return value;
-        return null;
+        return prevValue;
     }
 
     @Override
     public void putAll(Map<? extends String, ? extends String> m) {
         try (Jedis jedis = jedisPool.getResource()) {
             Map<String, String> values = m.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, Object::toString));
-            jedis.hmset(hmapName, values);
-            changeCounter = jedis.incr(changeCounterName);
+            Transaction transaction = jedis.multi();
+            transaction.hmset(hmapName, values);
+            transaction.incr(changeCounterName);
+            List<Object> result = transaction.exec();
+
+            mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
             if(keySet != null)
                 keySet.addAll(m.keySet());
         }
@@ -136,7 +164,12 @@ public class RedisMap implements Map<String,String> {
     @Override
     public void clear() {
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.hdel(hmapName);
+            Transaction transaction = jedis.multi();
+            transaction.del(hmapName);
+            transaction.incr(changeCounterName);
+            List<Object> result = transaction.exec();
+
+            mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
             if(keySet != null)
                 keySet.clear();
         }
@@ -144,14 +177,17 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public Set<String> keySet() {
+        Set<String> keys = null;
         if(keySet == null) {
-            Set<String> keys;
             try (Jedis jedis = jedisPool.getResource()) {
-                keys = jedis.hkeys(hmapName);
-                keySet = new RedisSet(keys, jedisPool, hmapName, changeCounter, changeCounterName);
+                keySet = new LinkedHashSet<>(jedis.hkeys(hmapName));
+                keys = new RedisSet(keySet, jedisPool, hmapName, mapParams);
             }
+            CleanupClass mapCleanup = cleaner.get();
+            if(mapCleanup != null)
+                mapCleanup.SetKeySet(keySet);
         }
-        return keySet;
+        return keys;
     }
 
     //переписать

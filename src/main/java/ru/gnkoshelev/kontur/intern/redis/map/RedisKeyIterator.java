@@ -3,28 +3,29 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.function.Consumer;
 
 public class RedisKeyIterator implements Iterator<String> {
-    private LinkedHashSet<String> savedKeySet;
+    private WeakReference<LinkedHashSet<String>> savedKeySet;
     private Iterator<String> iterator;
     private JedisPool jedisPool;
-    private List<String> basicParams;
     private List<String> keysParam;
+    private MapParams mapParams;
 
-    public RedisKeyIterator(Set<String> set, JedisPool jedisPool, List<String> basicParams, List<String> keysParam) {
-        this.savedKeySet = new LinkedHashSet<>(set);
+    public RedisKeyIterator(LinkedHashSet<String> set, JedisPool jedisPool, List<String> keysParam, MapParams mapParams) {
+        this.savedKeySet = new WeakReference<>(set);
         this.jedisPool = jedisPool;
-        this.basicParams = basicParams;
         this.keysParam = keysParam;
-        iterator = savedKeySet.iterator();
+        this.mapParams = mapParams;
+        iterator = Objects.requireNonNull(savedKeySet.get()).iterator();
     }
 
     @Override
     public boolean hasNext() {
         try (Jedis jedis = jedisPool.getResource()) {
-            UpdatedChecker.checkForUpdates(jedis, savedKeySet, keysParam, basicParams);
+            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet.get(), keysParam, mapParams.getBasicParams()));
         }
         return iterator.hasNext();
     }
@@ -32,18 +33,20 @@ public class RedisKeyIterator implements Iterator<String> {
     @Override
     public String next() {
         try (Jedis jedis = jedisPool.getResource()) {
-            UpdatedChecker.checkForUpdates(jedis, savedKeySet, keysParam, basicParams);
+            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet.get(), keysParam, mapParams.getBasicParams()));
         }
         return iterator.next();
     }
 
     @Override
     public void remove() {
+        List<Long> result;
         try (Jedis jedis = jedisPool.getResource()) {
-            List<String> params = new ArrayList<>(basicParams);
+            List<String> params = new ArrayList<>(mapParams.getBasicParams());
             params.add(iterator.toString());
-            UpdatedChecker.checkUpdatesWithRemove(jedis, savedKeySet, keysParam, params);
+            result = UpdateChecker.checkUpdatesWithRemove(jedis, savedKeySet.get(), keysParam, params);
         }
+        mapParams.setChangeCounter(result.get(0));
     }
 
     @Override
