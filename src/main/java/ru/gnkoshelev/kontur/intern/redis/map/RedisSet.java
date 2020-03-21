@@ -2,6 +2,7 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.Transaction;
 
 import java.util.*;
 
@@ -140,7 +141,10 @@ public class RedisSet implements Set<String> {
     @Override
     public void clear() {
         try (Jedis jedis = jedisPool.getResource()) {
-            jedis.hdel(hmapName);
+            Transaction transaction = jedis.multi();
+            transaction.del(hmapName);
+            transaction.incr(mapParams.getChangeCounterName());
+            transaction.exec();
             savedKeySet.clear();
         }
     }
@@ -174,7 +178,7 @@ public class RedisSet implements Set<String> {
         try (Jedis jedis = jedisPool.getResource()) {
             mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
         }
-        return savedKeySet.iterator();
+        return new RedisKeyIterator(savedKeySet, jedisPool, keysParam, mapParams);
     }
 
     @Override
@@ -190,7 +194,11 @@ public class RedisSet implements Set<String> {
         try (Jedis jedis = jedisPool.getResource()) {
             mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
         }
-        return savedKeySet.toArray(ts);
+        if(ts == null)
+            throw new NullPointerException();
+        if(!ts.getClass().getComponentType().equals(String.class))
+            throw  new ArrayStoreException();
+       return savedKeySet.toArray(ts);
     }
 
     @Override
@@ -211,10 +219,13 @@ public class RedisSet implements Set<String> {
 
     @Override
     public boolean equals(Object o) {
-        try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+        if(o instanceof Set) {
+            try (Jedis jedis = jedisPool.getResource()) {
+                mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            }
+            return savedKeySet.equals(o);
         }
-        return savedKeySet.equals(o);
+        return false;
     }
 
     @Override
@@ -224,4 +235,5 @@ public class RedisSet implements Set<String> {
         }
         return savedKeySet.hashCode();
     }
+
 }

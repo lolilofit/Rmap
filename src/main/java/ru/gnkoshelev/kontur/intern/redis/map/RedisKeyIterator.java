@@ -13,6 +13,7 @@ public class RedisKeyIterator implements Iterator<String> {
     private JedisPool jedisPool;
     private List<String> keysParam;
     private MapParams mapParams;
+    private String lastElement = null;
 
     public RedisKeyIterator(LinkedHashSet<String> set, JedisPool jedisPool, List<String> keysParam, MapParams mapParams) {
         this.savedKeySet = new WeakReference<>(set);
@@ -35,22 +36,31 @@ public class RedisKeyIterator implements Iterator<String> {
         try (Jedis jedis = jedisPool.getResource()) {
             mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet.get(), keysParam, mapParams.getBasicParams()));
         }
-        return iterator.next();
+        lastElement =  iterator.next();
+        return lastElement;
     }
 
     @Override
     public void remove() {
         List<Long> result;
+        if(lastElement == null)
+            throw  new IllegalStateException();
+
         try (Jedis jedis = jedisPool.getResource()) {
             List<String> params = new ArrayList<>(mapParams.getBasicParams());
-            params.add(iterator.toString());
+            params.add(lastElement);
             result = UpdateChecker.checkUpdatesWithRemove(jedis, savedKeySet.get(), keysParam, params);
         }
+        if(mapParams.getChangeCounter().equals(result.get(0))) {
+            iterator.remove();
+        }
         mapParams.setChangeCounter(result.get(0));
+        lastElement = null;
     }
 
     @Override
     public void forEachRemaining(Consumer<? super String> action) {
 
     }
+
 }

@@ -39,16 +39,19 @@ public class UpdateChecker {
     static List<Long> checkForUpdatedWithScript(Jedis jedis, Set<String> savedKeySet, List<String> keysParam, List<String> params, String scriptName, int minResultsNumber) {
         List<Long> result = new ArrayList<>(2);
         Object values = jedis.eval(scripts.get(scriptName), keysParam, params);
-        Collection castedValues = (Collection) values;
-        Iterator iterator = castedValues.iterator();
+        Collection<Object> castedValues = (Collection<Object>) values;
+        Iterator<Object> iterator = castedValues.iterator();
         //casting
-        for(int i = 0; i < minResultsNumber; i++)
-            result.add((Long) iterator.next());
+        for(int i = 0; i < minResultsNumber; i++) {
+            Object resultElement = iterator.next();
+            if(resultElement instanceof Long)
+                result.add((Long)resultElement);
+        }
 
         if(castedValues.size() > minResultsNumber) {
             if(savedKeySet != null) {
-                iterator.next();
-                Set<String> currentKeySet = (Set<String>) iterator;
+                Object lastResult = iterator.next();
+                Set<String> currentKeySet = (Set<String>) lastResult;
                 savedKeySet.clear();
                 savedKeySet.addAll(currentKeySet);
             }

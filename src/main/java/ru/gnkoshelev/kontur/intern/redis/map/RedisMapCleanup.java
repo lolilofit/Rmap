@@ -9,14 +9,14 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-public class CleanupClass implements Runnable {
+public class RedisMapCleanup implements Runnable {
     private String redisKey;
     private String changeCounterName;
     private JedisPool jedisPool;
     private AtomicBoolean isExecuted = new AtomicBoolean(false);
     private WeakReference<Set<String>> keySet = null;
 
-    public CleanupClass(String redisKey, String changeCounterName, JedisPool jedisPool) {
+    public RedisMapCleanup(String redisKey, String changeCounterName, JedisPool jedisPool) {
         this.redisKey = redisKey;
         this.changeCounterName = changeCounterName;
         this.jedisPool = jedisPool;

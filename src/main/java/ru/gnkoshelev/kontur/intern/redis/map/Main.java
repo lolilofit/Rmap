@@ -21,11 +21,25 @@ public class Main {
         System.out.println(redisMap.put("1", "chahgedValue"));
         System.out.println(redisMap.put("3", "value2"));
 
+        Map<String, String> example = new HashMap<>();
+        example.put("1", "value1");
+        example.put("2", "value2");
+        example.put("1", "chahgedValue");
+        example.put("3", "value2");
+        System.out.println(redisMap.equals(example));
+
         Set<String> keySet = redisMap.keySet();
         keySet.remove("1");
 
         System.out.println(redisMap.put("4", "value2"));
-        keySet.iterator();
+        Iterator<String> iter = keySet.iterator();
+
+        iter.next();
+        iter.remove();
+
+        while(iter.hasNext()) {
+            System.out.println(iter.next());
+        }
     }
 
     public static void main(String[] args) {
@@ -73,6 +87,30 @@ public class Main {
         Collection<String> val = v.values();
         val.remove("changed");
         System.out.println("");
+
+ */
+
+        Set<String> k = new LinkedHashSet<>();
+        k.add("first");
+        k.add("sec");
+        k.add("third");
+
+        k.toArray();
+
+       // Iterator<String> it = k.iterator();
+       // it.next();
+       // it.remove();
+       // it.remove();
+
+
+/*
+        Map<String, Object> hm = new HashMap<>();
+        Map<String, String> tm = new TreeMap<>();
+
+        hm.put("val1", "a");
+        tm.put("val1", "a");
+
+        System.out.println(hm.equals(tm));
 
  */
 

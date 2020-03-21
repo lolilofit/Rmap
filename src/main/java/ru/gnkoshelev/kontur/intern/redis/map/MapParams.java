@@ -26,4 +26,8 @@ public class MapParams {
     public Long getChangeCounter() {
         return changeCounter;
     }
+
+    public String getChangeCounterName() {
+        return basicParams.get(1);
+    }
 }
