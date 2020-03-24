@@ -21,6 +21,13 @@ public class Main {
         System.out.println(redisMap.put("1", "chahgedValue"));
         System.out.println(redisMap.put("3", "value2"));
 
+        Set<Map.Entry<String, String>> entrySet = redisMap.entrySet();
+        Iterator<Map.Entry<String, String>> ite = entrySet.iterator();
+        Map.Entry<String, String> e = ite.next();
+        entrySet.remove(e);
+
+
+
         Map<String, String> example = new HashMap<>();
         example.put("1", "value1");
         example.put("2", "value2");
@@ -48,13 +55,30 @@ public class Main {
       //values
       //what put returns
        */
-/*
+
 
         Map<String, String> v = new HashMap<>();
         v.put("1", "val");
         v.put("1", "changed");
         v.put("3", "pro");
+        v.put("2", "valll");
+        v.put("4", "pro");
 
+        Set<Map.Entry<String, String>> entrySet = v.entrySet();
+
+        Map<String, String> v1 = new HashMap<>();
+        v1.put("3", "pro");
+        Set<Map.Entry<String, String>> entrySet1 = v1.entrySet();
+        Iterator<Map.Entry<String, String>> iterator1 = entrySet.iterator();
+        Map.Entry<String, String> entry1 = iterator1.next();
+
+        entrySet.remove(entry1);
+        Iterator<Map.Entry<String, String>> iterator = entrySet.iterator();
+        while(iterator.hasNext()) {
+            Map.Entry<String, String> entry = iterator.next();
+            //entry.setValue("value entry changed");
+        }
+        /*
         Map<String, String> v1 = new HashMap<>();
         v1.put("1", "val");
         v1.put("1", "changed");
@@ -88,7 +112,7 @@ public class Main {
         val.remove("changed");
         System.out.println("");
 
- */
+ *
 
         Set<String> k = new LinkedHashSet<>();
         k.add("first");
@@ -97,6 +121,8 @@ public class Main {
 
         k.toArray();
 
+
+ */
        // Iterator<String> it = k.iterator();
        // it.next();
        // it.remove();
@@ -113,6 +139,7 @@ public class Main {
         System.out.println(hm.equals(tm));
 
  */
+
 
         func();
 

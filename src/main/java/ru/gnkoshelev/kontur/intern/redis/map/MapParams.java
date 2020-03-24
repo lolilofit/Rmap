@@ -30,4 +30,6 @@ public class MapParams {
     public String getChangeCounterName() {
         return basicParams.get(1);
     }
+
+    public String getMapName() { return basicParams.get(2); }
 }

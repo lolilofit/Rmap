@@ -3,237 +3,260 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
-
 import java.util.*;
 
-public class RedisSet implements Set<String> {
-    private LinkedHashSet<String> savedKeySet;
+public class RedisSet<T, V extends T> implements Set<T> {
+   // private LinkedHashSet<V> savedLocalSet;
+    private Class<V> componentType;
     private JedisPool jedisPool;
     private String hmapName;
-   // private Long changeCounter;
     private List<String> keysParam;
-   // List<String> basicParams;
-    private MapParams mapParams;
+ //   private MapParams mapParams;
+ //   private UpdateChecker updateChecker;
 
-
-    public RedisSet(LinkedHashSet<String> set, JedisPool jedisPool, String hmapName, MapParams mapParams) {
+    public RedisSet(JedisPool jedisPool, String hmapName, List<String> keysParam) {
         this.hmapName = hmapName;
         this.jedisPool = jedisPool;
-        this.mapParams = mapParams;
-
-        savedKeySet = set;
-        keysParam = new ArrayList<>(1);
-        keysParam.add("0");
-        /*
-        this.changeCounter = changeCounter;
-        basicParams = new ArrayList<>(4);
-        basicParams.add(changeCounter.toString());
-        basicParams.add(changeCounterName);
-        basicParams.add(hmapName);
-        */
+    //    this.mapParams = mapParams;
+        this.keysParam = keysParam;
+   //     this.updateChecker = updateChecker;
+      //  this.componentType = componentType;
+       // savedLocalSet = set;
     }
+
 
     @Override
     public boolean remove(Object o) {
+        Long changedCount;
+        try (Jedis jedis = jedisPool.getResource()) {
+            changedCount = jedis.hdel(hmapName, o.toString());
+        }
+        return changedCount > 0;
+        /*
         List<Long> result;
         Long oldChangeCounter = mapParams.getChangeCounter();
 
-        try (Jedis jedis = jedisPool.getResource()) {
-            List<String> params = new ArrayList<>(4);
-            //params.add(changeCounter.toString());
-            //params.add(changeCounterName);
-            //params.add(hmapName);
+        List<String> params = new ArrayList<>(4);
+        params.addAll(mapParams.getBasicParams());
+        params.add(o.toString());
 
-            params.addAll(mapParams.getBasicParams());
-            params.add(o.toString());
-            result = UpdateChecker.checkUpdatesWithRemove(jedis, savedKeySet, keysParam, params);
-            /*
-            Object values = jedis.eval("local change_counter = tonumber(ARGV[1]) local a = redis.call(\"GET\", ARGV[2]) local current_number = tonumber(a) " +
-                    "redis.call(\"hdel\", ARGV[3], ARGV[4]) " +
-                    "if(change_counter ~= current_number) then " +
-                    "return {change_counter, redis.call(\"hkeys\", ARGV[3])} end  " +
-                    "return {change_counter, nil}", keysParam, params);
-            Collection castedValues = (Collection) values;
-            Iterator iterator = castedValues.iterator();
-            changeCounter = (Long) iterator.next();
-            if(castedValues.size() > 1) {
-                Set<String> currentKeySet = (Set<String>) iterator.next();
-                savedKeySet.clear();
-                savedKeySet.addAll(currentKeySet);
-                return true;
-            }
-             */
+        try (Jedis jedis = jedisPool.getResource()) {
+            result = updateChecker.checkUpdatesWithRemove(jedis, params, o.toString());
         }
 
         mapParams.setChangeCounter(result.get(0));
-        if(mapParams.getChangeCounter().equals(oldChangeCounter))
-            savedKeySet.remove(o);
+        //if(mapParams.getChangeCounter().equals(oldChangeCounter))
+        //    savedLocalSet.remove(o);
+
         return (result.get(1) > 0);
+
+         */
     }
 
     @Override
     public boolean removeAll(Collection<?> collection) {
+        List<Object> result;
+        try (Jedis jedis = jedisPool.getResource()) {
+            Transaction transaction = jedis.multi();
+            for (Object o : collection)
+                transaction.hdel(hmapName, o.toString());
+            result = transaction.exec();
+        }
+        for(Object res : result) {
+            if((Integer)res > 0)
+                return true;
+        }
+        return false;
+        /*
         List<Long> result;
-        Long oldChangeCounter = mapParams.getChangeCounter();
+        //Long oldChangeCounter = mapParams.getChangeCounter();
 
         try (Jedis jedis = jedisPool.getResource()) {
             List<String> params = new ArrayList<>(4);
-            /*params.add(changeCounter.toString());
-            params.add(changeCounterName);
-            params.add(hmapName);
-            Iterator<?> paramsIteratior = collection.iterator();
-            while(paramsIteratior.hasNext()) {
-                params.add(paramsIteratior.next().toString());
-            }
-             */
             params.addAll(mapParams.getBasicParams());
+
+            Set<String> objectsToRemove = new LinkedHashSet<>();
             Iterator<?> paramsIteratior = collection.iterator();
             while(paramsIteratior.hasNext()) {
-                params.add(paramsIteratior.next().toString());
+                //check
+                String value = paramsIteratior.next().toString();
+                params.add(value);
+                objectsToRemove.add(value);
             }
-            result = UpdateChecker.checkUpdateWithRemoveAll(jedis, savedKeySet, keysParam, params);
-/*
-            Object values = jedis.eval("local change_counter = tonumber(ARGV[1]) local a = redis.call(\"GET\", ARGV[2]) local current_number = tonumber(a) " +
-                    "for i = 4, #ARGV, 1 do redis.call(\"hdel\", ARGV[3], ARGV[i]) end" +
-                    "if(change_counter ~= current_number) then " +
-                    "return {change_counter, redis.call(\"hkeys\", ARGV[3])} end  " +
-                    "return {change_counter, nil}", keysParam, params);
-            Collection castedValues = (Collection) values;
-            Iterator iterator = castedValues.iterator();
-            changeCounter = (Long) iterator.next();
-            if(castedValues.size() > 1) {
-                Set<String> currentKeySet = (Set<String>) iterator.next();
-                savedKeySet.clear();
-                savedKeySet.addAll(currentKeySet);
-                return true;
-            }
-            else {
-                //???
-                boolean result = true;
-                paramsIteratior = collection.iterator();
-                while(paramsIteratior.hasNext()) {
-                    result = result & savedKeySet.remove(paramsIteratior.next());
-                }
-                return result;
-            }
- */
+
+            result = updateChecker.checkUpdateWithRemoveAll(jedis, params, objectsToRemove);
         }
         mapParams.setChangeCounter(result.get(0));
+       /*
         if(mapParams.getChangeCounter().equals(oldChangeCounter)) {
             for (Object o : collection) {
-                savedKeySet.remove(o.toString());
+                if(componentType.equals(String.class) && o instanceof String)
+                    savedLocalSet.remove(o);
             }
         }
+
+
         return result.get(1) > 1;
-    }
-
-    @Override
-    public boolean add(String s) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends String> collection) {
-        throw new UnsupportedOperationException();
+        */
     }
 
 
     @Override
     public void clear() {
         try (Jedis jedis = jedisPool.getResource()) {
+            jedis.del(hmapName);
+            /*
             Transaction transaction = jedis.multi();
             transaction.del(hmapName);
             transaction.incr(mapParams.getChangeCounterName());
             transaction.exec();
-            savedKeySet.clear();
+            savedLocalSet.clear();
+
+             */
         }
     }
 
     @Override
     public int size() {
+        int size = 0;
         try (Jedis jedis = jedisPool.getResource()) {
-            UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams());
+            size = Math.toIntExact(jedis.hlen(hmapName));
         }
-        return savedKeySet.size();
+        return size;
+            /*
+            updateChecker.checkForUpdates(jedis, mapParams.getBasicParams());
+        }
+        return savedLocalSet.size();
+             */
     }
 
     @Override
     public boolean isEmpty() {
+        if(this.size() == 0)
+            return true;
+        return false;
+        /*
         try (Jedis jedis = jedisPool.getResource()) {
-            UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams());
+            updateChecker.checkForUpdates(jedis, mapParams.getBasicParams());
         }
-        return savedKeySet.isEmpty();
+        return savedLocalSet.isEmpty();
+
+         */
     }
 
     @Override
     public boolean contains(Object o) {
+        boolean doesExists;
         try (Jedis jedis = jedisPool.getResource()) {
-            UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams());
+            doesExists = jedis.hexists(hmapName, o.toString());
         }
-        return savedKeySet.contains(o);
+        return doesExists;
+        /*
+        try (Jedis jedis = jedisPool.getResource()) {
+            updateChecker.checkForUpdates(jedis, mapParams.getBasicParams());
+        }
+        return savedLocalSet.contains(o);
+
+         */
     }
 
     @Override
-    public Iterator<String> iterator() {
+    public Iterator<T> iterator() {
+        return new RedisKeyIterator<T, V>(jedisPool, hmapName);
+        /*
         try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
         }
-        return new RedisKeyIterator(savedKeySet, jedisPool, keysParam, mapParams);
+        return new RedisKeyIterator<T, V>(savedLocalSet, componentType, jedisPool, keysParam, mapParams, updateChecker);
+
+         */
     }
 
     @Override
     public Object[] toArray() {
+        if(componentType.equals(String.class)) {
+            Set<String> keys;
+            try (Jedis jedis = jedisPool.getResource()) {
+                keys = jedis.hkeys(hmapName);
+            }
+        /*
         try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
         }
-        return savedKeySet.toArray();
+        return savedLocalSet.toArray();
+         */
+            return keys.toArray();
+        }
+        if(Arrays.asList(componentType.getInterfaces()).contains(Map.Entry.class))  {
+            Set<RedisEntry> entrySet;
+        }
+        return new Object[0];
     }
 
     @Override
-    public <T> T[] toArray(T[] ts) {
+    public <V> V[] toArray(V[] ts) {
+        /*
         try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
         }
         if(ts == null)
             throw new NullPointerException();
-        if(!ts.getClass().getComponentType().equals(String.class))
+        if(!ts.getClass().getComponentType().equals(savedLocalSet.getClass().getComponentType()))
             throw  new ArrayStoreException();
-       return savedKeySet.toArray(ts);
+       return savedLocalSet.toArray(ts);
+
+         */
+    }
+
+    @Override
+    public boolean add(Object o) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean addAll(Collection<? extends T> collection) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean containsAll(Collection<?> collection) {
         try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
         }
-        return savedKeySet.containsAll(collection);
+        return savedLocalSet.containsAll(collection);
     }
 
     @Override
     public boolean retainAll(Collection<?> collection) {
         try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
         }
-        return savedKeySet.retainAll(collection);
+        return savedLocalSet.retainAll(collection);
     }
 
     @Override
     public boolean equals(Object o) {
         if(o instanceof Set) {
             try (Jedis jedis = jedisPool.getResource()) {
-                mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
+                Set<String> keys = jedis.hkeys(hmapName);
+                return o.equals(keys);
             }
-            return savedKeySet.equals(o);
         }
         return false;
+        /*
+        if(o instanceof Set) {
+            try (Jedis jedis = jedisPool.getResource()) {
+                mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
+            }
+            return savedLocalSet.equals(o);
+        }
+        return false;
+         */
     }
 
     @Override
     public int hashCode() {
-        try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(UpdateChecker.checkForUpdates(jedis, savedKeySet, keysParam, mapParams.getBasicParams()));
-        }
-        return savedKeySet.hashCode();
+        return  hmapName.hashCode();
     }
 
 }

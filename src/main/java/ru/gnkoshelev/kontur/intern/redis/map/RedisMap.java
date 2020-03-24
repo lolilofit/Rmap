@@ -4,7 +4,6 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
 
-import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,9 +21,15 @@ public class RedisMap implements Map<String,String> {
     private JedisPool jedisPool;
     private String hmapName;
     private String changeCounterName;
-    private LinkedHashSet<String> keySet = null;
-    private WeakReference<RedisMapCleanup> cleaner;
+   // private RedisSet<String, String> keySet = null;
+  //  private LinkedHashSet<String> keySetForAdding = null;
+    private RedisMapCleanup cleaner;
     private MapParams mapParams;
+
+  //  private RedisSet<Entry<String, String>, RedisEntry> entryRedisSet = null;
+ //   private LinkedHashSet<RedisEntry> redisEntryForAdding = null;
+  //  private UpdateChecker updateChecker;
+    private List<String> keysParam;
 
     //перенести из конструктора
     RedisMap() {
@@ -39,12 +44,16 @@ public class RedisMap implements Map<String,String> {
             hmapName = baseKeyName + number.toString();
             mapParams = new MapParams(hmapName, changeCounterName, 0L);
 
-            RedisMapCleanup redisMapCleanup = new RedisMapCleanup(hmapName, changeCounterName, jedisPool);
-            cleaner = new WeakReference<>(redisMapCleanup);
+            RedisMapCleanup redisMapCleanup = new RedisMapCleanup(hmapName, jedisPool);
+            cleaner = redisMapCleanup;
             RedisMapCleanerRegistrar.register(this, redisMapCleanup);
             Runtime.getRuntime().addShutdownHook(new Thread(redisMapCleanup));
 
             System.out.println(hmapName);
+          //  entryRedisSet = null;
+            keysParam = new ArrayList<>(1);
+            keysParam.add("0");
+         //   updateChecker = new UpdateChecker(jedisPool,mapParams, keysParam);
         }
     }
 
@@ -104,8 +113,7 @@ public class RedisMap implements Map<String,String> {
         return null;
     }
 
-    //do redis operation and counter incr in one operation
-    //what to return?
+
     @Override
     public String put(String key, String value) {
         if(key == null || value == null)
@@ -119,10 +127,10 @@ public class RedisMap implements Map<String,String> {
             transaction.incr(changeCounterName);
             List<Object> result = transaction.exec();
 
-            if(keySet != null) {
-                keySet.add(key);
-            }
-            mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
+        //    if(keySet != null) {
+       //         keySetForAdding.add(key);
+       //     }
+       //     mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
             if(result.get(0) != null)
                 previousValue = result.get(0).toString();
         }
@@ -139,12 +147,12 @@ public class RedisMap implements Map<String,String> {
             transaction.incr(changeCounterName);
             List<Object> result = transaction.exec();
 
-            mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
+          //  mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
             if(result.get(0) != null)
                 prevValue = result.get(0).toString();
-            if(keySet != null) {
-                keySet.remove(key.toString());
-            }
+      //      if(keySet != null) {
+      //          keySetForAdding.remove(key.toString());
+      //      }
         }
         return prevValue;
     }
@@ -159,42 +167,46 @@ public class RedisMap implements Map<String,String> {
 
             Transaction transaction = jedis.multi();
             transaction.hmset(hmapName, values);
-            transaction.incr(changeCounterName);
+    //        transaction.incr(changeCounterName);
             List<Object> result = transaction.exec();
 
-            mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
-            if(keySet != null)
-                keySet.addAll(m.keySet());
+     //       mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
+   //         if(keySet != null)
+    //           keySetForAdding.addAll(m.keySet());
         }
     }
 
     @Override
     public void clear() {
         try (Jedis jedis = jedisPool.getResource()) {
-            Transaction transaction = jedis.multi();
-            transaction.del(hmapName);
-            transaction.incr(changeCounterName);
-            List<Object> result = transaction.exec();
+        //    Transaction transaction = jedis.multi();
+            jedis.del(hmapName);
+      //      transaction.incr(changeCounterName);
+       //     List<Object> result = transaction.exec();
 
-            mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
-            if(keySet != null)
-                keySet.clear();
+      //      mapParams.setChangeCounter(Long.valueOf(result.get(1).toString()));
+     //       if(keySet != null)
+     //           keySetForAdding.clear();
         }
     }
 
     @Override
     public Set<String> keySet() {
-        Set<String> keys = null;
+        return new RedisSet<String,String>(jedisPool, hmapName, keysParam);
+        /*
+
         if(keySet == null) {
             try (Jedis jedis = jedisPool.getResource()) {
-                keySet = new LinkedHashSet<>(jedis.hkeys(hmapName));
-                keys = new RedisSet(keySet, jedisPool, hmapName, mapParams);
+                keySetForAdding = new LinkedHashSet<>(jedis.hkeys(hmapName));
+                updateChecker.setKeySetForAdding(keySetForAdding);
+                keySet = new RedisSet<>(keySetForAdding, String.class, jedisPool, hmapName, mapParams, keysParam, updateChecker);
             }
-            RedisMapCleanup mapCleanup = cleaner.get();
-            if(mapCleanup != null)
-                mapCleanup.SetKeySet(keySet);
+
+            if(cleaner != null)
+                cleaner.setKeySet(keySetForAdding);
         }
-        return keys;
+        return keySet;
+         */
     }
 
     //переписать
@@ -209,13 +221,25 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public Set<Entry<String, String>> entrySet() {
-       /* Map<String, String> m;
-        try (Jedis jedis = jedisPool.getResource()) {
-            m = jedis.hgetAll(hmapName);
-        }
-        return m.entrySet();
-        */
-       return null;
+        return new RedisSet<Entry<String, String>, RedisEntry>(jedisPool, hmapName, keysParam);
+        /*
+       if(entryRedisSet == null) {
+           redisEntryForAdding = new LinkedHashSet<>();
+           Map<String, String> redisMap;
+           try(Jedis jedis = jedisPool.getResource()) {
+               redisMap = jedis.hgetAll(hmapName);
+           }
+           for(Map.Entry<String,String>entry : redisMap.entrySet())
+               redisEntryForAdding.add(new RedisEntry(entry.getKey(), entry.getValue(), jedisPool, mapParams));
+
+           updateChecker.setRedisEntryForAdding(redisEntryForAdding);
+           entryRedisSet = new RedisSet<>(redisEntryForAdding, RedisEntry.class, jedisPool, hmapName, mapParams, keysParam, updateChecker);
+       }
+       if(cleaner != null)
+           cleaner.setEntrySet(redisEntryForAdding);
+       return entryRedisSet;
+
+         */
     }
 
     @Override
