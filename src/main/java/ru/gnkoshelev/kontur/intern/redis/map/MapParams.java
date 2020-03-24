@@ -6,12 +6,14 @@ import java.util.List;
 public class MapParams {
     private Long changeCounter;
     private List<String> basicParams;
+    private String subCounterName;
 
-    public MapParams(String hmapName, String changeCounterName, Long changeCounter) {
+    public MapParams(String hmapName, String changeCounterName, String subCounterName, Long changeCounter) {
         basicParams = new ArrayList<>(4);
         basicParams.add(changeCounter.toString());
         basicParams.add(changeCounterName);
         basicParams.add(hmapName);
+        this.subCounterName = subCounterName;
     }
 
     List<String> getBasicParams() {
@@ -32,4 +34,6 @@ public class MapParams {
     }
 
     public String getMapName() { return basicParams.get(2); }
+
+    public String getSubCounterName() { return subCounterName; }
 }

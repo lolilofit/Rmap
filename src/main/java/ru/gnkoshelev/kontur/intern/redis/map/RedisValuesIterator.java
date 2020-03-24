@@ -2,22 +2,38 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
-public class RedisKeyIterator extends RedisBasicIterator<String, String> {
+public class RedisValuesIterator extends RedisBasicIterator<String, String> {
+    private String lasKey;
 
-    public RedisKeyIterator(JedisPool jedisPool, String hmapName, MapParams mapParams) {
+    public RedisValuesIterator(JedisPool jedisPool, String hmapName, MapParams mapParams) {
         super(jedisPool, hmapName, mapParams);
     }
 
     @Override
     public String next() {
         checkIsLast();
-        String resultKey = redisPart.get(localCursor).getKey();
-        lastElement = resultKey;
+        Map.Entry<String, String> entry = redisPart.get(localCursor);
+        lasKey = entry.getKey();
+        lastElement = entry.getValue();
         localCursor++;
-        return resultKey;
+        return lastElement;
     }
+
+    @Override
+    public void remove() {
+        if(lastElement == null)
+            throw new IllegalStateException();
+        List<String> params = new ArrayList<>(mapParams.getBasicParams());
+        params.add(lasKey);
+        removeWithParams(params);
+    }
+
 
     @Override
     public void forEachRemaining(Consumer<? super String> action) {
@@ -28,7 +44,7 @@ public class RedisKeyIterator extends RedisBasicIterator<String, String> {
 
         while(!shouldStop) {
             for (int i = localCursor; i < redisPart.size(); i++) {
-                action.accept(redisPart.get(i).getKey());
+                action.accept(redisPart.get(i).getValue());
             }
             localCursor = redisPart.size();
 

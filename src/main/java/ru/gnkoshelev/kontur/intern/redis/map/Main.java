@@ -64,6 +64,12 @@ public class Main {
         v.put("2", "valll");
         v.put("4", "pro");
 
+        Collection<String> values = v.values();
+        Set<String> cv = new LinkedHashSet<>();
+        cv.add("pro");
+        values.removeAll(cv);
+        System.out.println("");
+        /*
         Set<Map.Entry<String, String>> entrySet = v.entrySet();
 
         Map<String, String> v1 = new HashMap<>();
@@ -78,6 +84,8 @@ public class Main {
             Map.Entry<String, String> entry = iterator.next();
             //entry.setValue("value entry changed");
         }
+
+         */
         /*
         Map<String, String> v1 = new HashMap<>();
         v1.put("1", "val");

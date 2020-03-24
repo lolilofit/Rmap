@@ -5,7 +5,9 @@ import redis.clients.jedis.JedisPool;
 import java.util.*;
 
 public class UpdateChecker {
-    private final Map<String, String> scripts;
+    private static final Map<String, String> scripts;
+    private static List<String> keyParam;
+    /*
     private JedisPool jedisPool;
     private MapParams mapParams;
     private List<String> keysParam;
@@ -26,25 +28,28 @@ public class UpdateChecker {
     public void setRedisEntryForAdding(LinkedHashSet<RedisEntry> redisEntryForAdding) {
         this.redisEntryForAdding = redisEntryForAdding;
     }
-
-    {
+*/
+    static {
         Map<String, String> modScriptMap = new HashMap<>();
-
+/*
         StringBuilder checkUpdate = new StringBuilder();
         checkUpdate.append("local change_counter = tonumber(ARGV[1]) local a = redis.call(\"GET\", ARGV[2]) local current_number = tonumber(a) ")
                 .append("if(change_counter ~= current_number) then ")
                 .append("return {change_counter, redis.call(\"hgetall\", ARGV[3])} end  ")
                 .append("return {change_counter}");
         modScriptMap.put("checkUpdates", checkUpdate.toString());
-
+*/
         StringBuilder checkUpdateWithRemove = new StringBuilder();
         checkUpdateWithRemove.append("local change_counter = tonumber(ARGV[1]) local a = redis.call(\"GET\", ARGV[2]) local current_number = tonumber(a) ")
-                .append("local deleted_num = redis.call(\"hdel\", ARGV[3], ARGV[4]) ")
                 .append("if(change_counter ~= current_number) then ")
-                .append("return {change_counter, deleted_num, redis.call(\"hgetall\", ARGV[3])} end  ")
-                .append("return {change_counter, deleted_num}");
+                .append("return current_number end")
+                .append("local deleted_num = redis.call(\"hdel\", ARGV[3], ARGV[4]) ")
+                .append("redis.call(\"incr\", ARGV[2])")
+                .append("return current_number");
+               // .append("return {change_counter, deleted_num, redis.call(\"hgetall\", ARGV[3])} end  ")
+               // .append("return {change_counter, deleted_num}");
         modScriptMap.put("checkUpdateWithRemove", checkUpdateWithRemove.toString());
-
+/*
         StringBuilder checkUpdateWithRemoveAll = new StringBuilder();
         checkUpdateWithRemoveAll.append("local change_counter = tonumber(ARGV[1]) local a = redis.call(\"GET\", ARGV[2]) local current_number = tonumber(a) local deleted_num = 0")
                 .append("for i = 4, #ARGV, 1 do deleted_num = deleted_num + redis.call(\"hdel\", ARGV[3], ARGV[i]) end")
@@ -52,10 +57,17 @@ public class UpdateChecker {
                 .append("return {change_counter, redis.call(\"hgetall\", ARGV[3])} end  ")
                 .append("return {change_counter}");
         modScriptMap.put("checkUpdateWithRemoveAll", checkUpdateWithRemoveAll.toString());
-
+*/
         scripts = Collections.unmodifiableMap(modScriptMap);
+        keyParam = new ArrayList<>(1);
+        keyParam.add("0");
     }
 
+    public static Long checkUpdateWithRemove(Jedis jedis, List<String> params) {
+        Object result = jedis.eval(scripts.get("checkUpdateWithRemove"), keyParam, params);
+        return (Long)result;
+    }
+/*
      private List<Long> checkForUpdatedWithScript(Jedis jedis, List<String> params, String scriptName, int minResultsNumber, Set<String> objectsToRemove) {
          List<Long> result = new ArrayList<>(2);
          Object values = jedis.eval(scripts.get(scriptName), keysParam, params);
@@ -100,4 +112,6 @@ public class UpdateChecker {
     public List<Long> checkUpdateWithRemoveAll(Jedis jedis, List<String> params, Set<String> objectsToRemove) {
         return checkForUpdatedWithScript(jedis, params, "checkUpdateWithRemoveAll", 2, objectsToRemove);
     }
+    */
+
 }
