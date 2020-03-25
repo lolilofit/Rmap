@@ -14,10 +14,10 @@ public class RedisCollection implements Collection<String> {
     private JedisPool jedisPool;
     private String hmapName;
 
-    public RedisCollection(MapParams mapParams, JedisPool jedisPool, String hmapName) {
+    public RedisCollection(MapParams mapParams, JedisPool jedisPool) {
         this.mapParams = mapParams;
         this.jedisPool = jedisPool;
-        this.hmapName = hmapName;
+        this.hmapName = mapParams.getMapName();
     }
 
     @Override
@@ -39,16 +39,16 @@ public class RedisCollection implements Collection<String> {
     @Override
     public boolean contains(Object o) {
         Object result;
+        List<String> params = new ArrayList<>(1);
+        params.add(o.toString());
+        params.add(hmapName);
+
         try (Jedis jedis = jedisPool.getResource()) {
-            List<String> execKey = new ArrayList<>(1);
-            execKey.add("0");
-            List<String> params = new ArrayList<>(1);
-            params.add(o.toString());
-            params.add(hmapName);
-            result = jedis.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", execKey, params);
+            result = jedis.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", mapParams.getExecKey(), params);
         }
-        if(result instanceof Integer) {
-            Integer castedResult = (Integer)result;
+
+        if(result instanceof Long) {
+            Long castedResult = (Long) result;
             return castedResult == 1;
         }
         return false;
@@ -92,13 +92,12 @@ public class RedisCollection implements Collection<String> {
     @Override
     public boolean remove(Object o) {
         Object result;
+        List<String> params = new ArrayList<>(1);
+        params.add(o.toString());
+        params.add(hmapName);
+
         try (Jedis jedis = jedisPool.getResource()) {
-            List<String> execKey = new ArrayList<>(1);
-            execKey.add("0");
-            List<String> params = new ArrayList<>(1);
-            params.add(o.toString());
-            params.add(hmapName);
-            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[2]) local val = ARGV[1] local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else if(v == val) then return redis.call(\"HDEL\", ARGV[2], key) end end end return 0", execKey, params);
+            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[2]) local val = ARGV[1] local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else if(v == val) then return redis.call(\"HDEL\", ARGV[2], key) end end end return 0", mapParams.getExecKey(), params);
         }
         if((Long)result == 0)
             return false;
@@ -108,15 +107,13 @@ public class RedisCollection implements Collection<String> {
     @Override
     public boolean removeAll(Collection<?> collection) {
         Object result;
-        List<String> execKey = new ArrayList<>(1);
-        execKey.add("0");
         List<String> params = new ArrayList<>(1);
         params.add(hmapName);
         for (Object o : collection)
             params.add(o.toString());
 
         try (Jedis jedis = jedisPool.getResource()) {
-            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[1])  local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else for j = 1, #ARGV, 1 do if(v == ARGV[j]) then return redis.call(\"HDEL\", ARGV[2], key) end end end end return 0", execKey, params);
+            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[1])  local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else for j = 1, #ARGV, 1 do if(v == ARGV[j]) then return redis.call(\"HDEL\", ARGV[2], key) end end end end return 0", mapParams.getExecKey(), params);
         }
         return (Long)result > 0;
     }
@@ -127,16 +124,13 @@ public class RedisCollection implements Collection<String> {
             throw  new NullPointerException();
 
         List<Object> result;
-        List<String> execKey = new ArrayList<>(1);
-        execKey.add("0");
-
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
             for (Object o : collection) {
                 List<String> params = new ArrayList<>(1);
                 params.add(o.toString());
                 params.add(hmapName);
-                transaction.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", execKey, params);
+                transaction.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", mapParams.getExecKey(), params);
             }
             result = transaction.exec();
         }
@@ -154,15 +148,13 @@ public class RedisCollection implements Collection<String> {
 
     @Override
     public void clear() {
-        List<String> execKey = new ArrayList<>();
-        execKey.add("0");
         List<String> params = new ArrayList<>();
         params.add(mapParams.getSubCounterName());
         params.add(mapParams.getChangeCounterName());
         params.add(mapParams.getMapName());
         Object res;
         try (Jedis jedis = jedisPool.getResource()) {
-            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", execKey, params);
+            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", mapParams.getExecKey(), params);
         }
         if((Long)res > 0)
             mapParams.setChangeCounter((Long)res);

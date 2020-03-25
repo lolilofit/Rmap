@@ -6,7 +6,7 @@ import redis.clients.jedis.ScanParams;
 import redis.clients.jedis.ScanResult;
 import java.util.*;
 import java.util.List;
-import java.util.function.Consumer;
+
 
 public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> {
 
@@ -48,10 +48,12 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
         Long oldChangeCounter = mapParams.getChangeCounter();
         Long resultCounter;
         try (Jedis jedis = jedisPool.getResource()) {
-            resultCounter = UpdateChecker.checkUpdateWithRemove(jedis, params);
+            resultCounter = ScriptsStorage.checkUpdateWithRemove(jedis, params);
         }
-        if(!oldChangeCounter.equals(resultCounter))
+        if(!oldChangeCounter.equals(resultCounter)) {
+            mapParams.setChangeCounter(resultCounter);
             throw new IllegalStateException();
+        }
         mapParams.setChangeCounter(oldChangeCounter + 1);
     }
 

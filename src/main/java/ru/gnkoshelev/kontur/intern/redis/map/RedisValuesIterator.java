@@ -2,14 +2,14 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+
 public class RedisValuesIterator extends RedisBasicIterator<String, String> {
-    private String lasKey;
+    private String lastKey;
 
     public RedisValuesIterator(JedisPool jedisPool, String hmapName, MapParams mapParams) {
         super(jedisPool, hmapName, mapParams);
@@ -19,7 +19,7 @@ public class RedisValuesIterator extends RedisBasicIterator<String, String> {
     public String next() {
         checkIsLast();
         Map.Entry<String, String> entry = redisPart.get(localCursor);
-        lasKey = entry.getKey();
+        lastKey = entry.getKey();
         lastElement = entry.getValue();
         localCursor++;
         return lastElement;
@@ -30,7 +30,7 @@ public class RedisValuesIterator extends RedisBasicIterator<String, String> {
         if(lastElement == null)
             throw new IllegalStateException();
         List<String> params = new ArrayList<>(mapParams.getBasicParams());
-        params.add(lasKey);
+        params.add(lastKey);
         removeWithParams(params);
     }
 

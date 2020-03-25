@@ -2,13 +2,13 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
-
 import java.util.*;
+
 
 public class RedisEntrySet extends RedisBasicSet<Map.Entry<String, String>, RedisEntry> {
 
-    public RedisEntrySet(JedisPool jedisPool, String hmapName, List<String> keysParam, MapParams mapParams) {
-        super(jedisPool, hmapName, keysParam, mapParams);
+    public RedisEntrySet(JedisPool jedisPool, MapParams mapParams) {
+        super(jedisPool, mapParams);
     }
 
     private Set<RedisEntry> getAll() {

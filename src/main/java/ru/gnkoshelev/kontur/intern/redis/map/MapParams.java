@@ -7,6 +7,7 @@ public class MapParams {
     private Long changeCounter;
     private List<String> basicParams;
     private String subCounterName;
+    private  List<String> execKey;
 
     public MapParams(String hmapName, String changeCounterName, String subCounterName, Long changeCounter) {
         basicParams = new ArrayList<>(4);
@@ -14,6 +15,8 @@ public class MapParams {
         basicParams.add(changeCounterName);
         basicParams.add(hmapName);
         this.subCounterName = subCounterName;
+        execKey = new ArrayList<>();
+        execKey.add("0");
     }
 
     List<String> getBasicParams() {
@@ -21,9 +24,7 @@ public class MapParams {
         return basicParams;
     }
 
-    public void setChangeCounter(Long changeCounter) {
-        this.changeCounter = changeCounter;
-    }
+    public void setChangeCounter(Long changeCounter) { this.changeCounter = changeCounter; }
 
     public Long getChangeCounter() {
         return changeCounter;
@@ -36,4 +37,6 @@ public class MapParams {
     public String getMapName() { return basicParams.get(2); }
 
     public String getSubCounterName() { return subCounterName; }
+
+    public List<String> getExecKey() { return execKey; }
 }

@@ -5,17 +5,15 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
 import java.util.*;
 
+
 public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
     protected JedisPool jedisPool;
     protected String hmapName;
-    protected List<String> keysParam;
     protected MapParams mapParams;
 
-
-    public RedisBasicSet(JedisPool jedisPool, String hmapName, List<String> keysParam, MapParams mapParams) {
-        this.hmapName = hmapName;
+    public RedisBasicSet(JedisPool jedisPool, MapParams mapParams) {
+        this.hmapName = mapParams.getMapName();
         this.jedisPool = jedisPool;
-        this.keysParam = keysParam;
         this.mapParams = mapParams;
     }
 
@@ -77,15 +75,13 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
 
     @Override
     public void clear() {
-        List<String> execKey = new ArrayList<>();
-        execKey.add("0");
         List<String> params = new ArrayList<>();
         params.add(mapParams.getSubCounterName());
         params.add(mapParams.getChangeCounterName());
         params.add(mapParams.getMapName());
         Object res;
         try (Jedis jedis = jedisPool.getResource()) {
-            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", execKey, params);
+            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", mapParams.getExecKey(), params);
         }
         if((Long)res > 0)
             mapParams.setChangeCounter((Long)res);
@@ -125,15 +121,7 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
     public boolean addAll(Collection<? extends T> collection) {
         throw new UnsupportedOperationException();
     }
-/*
-    @Override
-    public boolean retainAll(Collection<?> collection) {
-        try (Jedis jedis = jedisPool.getResource()) {
-            mapParams.setChangeCounter(updateChecker.checkForUpdates(jedis, mapParams.getBasicParams()));
-        }
-        return savedLocalSet.retainAll(collection);
-    }
-*/
+
     @Override
     public boolean equals(Object o) {
         if(o instanceof Set) {

@@ -21,11 +21,20 @@ public class Main {
         System.out.println(redisMap.put("1", "chahgedValue"));
         System.out.println(redisMap.put("3", "value2"));
 
+        Collection<String> values = redisMap.values();
+        Iterator<String> vit = values.iterator();
+        while(vit.hasNext()) {
+            System.out.println(vit.next());
+        }
+
         Set<Map.Entry<String, String>> entrySet = redisMap.entrySet();
         Iterator<Map.Entry<String, String>> ite = entrySet.iterator();
-        Map.Entry<String, String> e = ite.next();
-        entrySet.remove(e);
-
+        while (ite.hasNext()) {
+            Map.Entry<String, String> e = ite.next();
+            System.out.println(e.getKey() + " " + e.getValue());
+        }
+        //Map.Entry<String, String> e = ite.next();
+        //entrySet.remove(e);
 
 
         Map<String, String> example = new HashMap<>();
@@ -55,7 +64,7 @@ public class Main {
       //values
       //what put returns
        */
-
+/*
 
         Map<String, String> v = new HashMap<>();
         v.put("1", "val");
@@ -69,6 +78,8 @@ public class Main {
         cv.add("pro");
         values.removeAll(cv);
         System.out.println("");
+
+ */
         /*
         Set<Map.Entry<String, String>> entrySet = v.entrySet();
 

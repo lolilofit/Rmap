@@ -1,6 +1,5 @@
 package ru.gnkoshelev.kontur.intern.redis.map;
 
-import javafx.scene.paint.PhongMaterial;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import java.util.ArrayList;
@@ -33,12 +32,6 @@ public class RedisMapCleanup implements Runnable {
             try (Jedis jedis = jedisPool.getResource()) {
                 System.out.println(redisKey + " Cleanup");
                 jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"incr\", ARGV[2]) redis.call(\"del\", ARGV[3]) end return", execKey, params);
-                /*
-                Transaction transaction = jedis.multi();
-                transaction.del(redisKey);
-                transaction.incr(changeCounterName);
-                transaction.exec();
-                 */
             }
         }
     }

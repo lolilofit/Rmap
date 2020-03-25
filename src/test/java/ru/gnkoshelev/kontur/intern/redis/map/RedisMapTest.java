@@ -42,4 +42,38 @@ public class RedisMapTest {
         Assert.assertEquals(1, values1.size());
         Assert.assertTrue(values1.contains("first"));
     }
+
+    @Test
+    public void equalsTest() {
+        Map<String, String> map1 = new RedisMap();
+        Map<String, String> map2 = new RedisMap();
+        Map<String, String> map3 = new RedisMap();
+
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+
+        map2.put("one", "1");
+        map2.put("two", "2");
+        map2.put("three", "1");
+
+        map3.put("one", "2");
+        map3.put("two", "2");
+        map3.put("three", "1");
+
+        Assert.assertEquals(map1, map2);
+        Assert.assertEquals(map2, map1);
+        Assert.assertNotEquals(map1, map3);
+        Assert.assertNotEquals(map3, map1);
+    }
+
+    @Test
+    public void setIterationTest() {
+        Map<String, String> map1 = new RedisMap();
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+
+        Set<Map.Entry<String, String>>
+    }
 }

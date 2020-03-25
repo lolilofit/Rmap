@@ -48,4 +48,21 @@ public class RedisEntry implements Map.Entry<String, String> {
     public String toString() {
         return key;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if(o == this)
+            return true;
+
+        if(o instanceof Map.Entry) {
+            Map.Entry<?, ?> entry = (Map.Entry)o;
+            return entry.getValue().equals(value) && entry.getKey().equals(key);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return key.hashCode();
+    }
 }
