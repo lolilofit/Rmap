@@ -4,10 +4,7 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 public class RedisCollection implements Collection<String> {
     private MapParams mapParams;
@@ -44,7 +41,7 @@ public class RedisCollection implements Collection<String> {
         params.add(hmapName);
 
         try (Jedis jedis = jedisPool.getResource()) {
-            result = jedis.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", mapParams.getExecKey(), params);
+            result = jedis.eval(ScriptsStorage.getContainsValueScript(), mapParams.getExecKey(), params);
         }
 
         if(result instanceof Long) {
@@ -70,6 +67,12 @@ public class RedisCollection implements Collection<String> {
 
     @Override
     public <T> T[] toArray(T[] ts) {
+
+        if(!ts.getClass().getComponentType().equals(String.class))
+            throw new ArrayStoreException();
+
+        Arrays.fill(ts, null);
+
         if(!ts.getClass().getComponentType().equals(String.class))
             throw new ArrayStoreException();
         Collection<String> values;
@@ -97,7 +100,7 @@ public class RedisCollection implements Collection<String> {
         params.add(hmapName);
 
         try (Jedis jedis = jedisPool.getResource()) {
-            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[2]) local val = ARGV[1] local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else if(v == val) then return redis.call(\"HDEL\", ARGV[2], key) end end end return 0", mapParams.getExecKey(), params);
+            result = jedis.eval(ScriptsStorage.getRemoveByValueScript(), mapParams.getExecKey(), params);
         }
         if((Long)result == 0)
             return false;
@@ -113,7 +116,7 @@ public class RedisCollection implements Collection<String> {
             params.add(o.toString());
 
         try (Jedis jedis = jedisPool.getResource()) {
-            result = jedis.eval("local map = redis.call(\"HGETALL\", ARGV[1])  local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else for j = 1, #ARGV, 1 do if(v == ARGV[j]) then return redis.call(\"HDEL\", ARGV[2], key) end end end end return 0", mapParams.getExecKey(), params);
+            result = jedis.eval(ScriptsStorage.getRemoveByCollectionScript(), mapParams.getExecKey(), params);
         }
         return (Long)result > 0;
     }
@@ -130,7 +133,7 @@ public class RedisCollection implements Collection<String> {
                 List<String> params = new ArrayList<>(1);
                 params.add(o.toString());
                 params.add(hmapName);
-                transaction.eval("local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0", mapParams.getExecKey(), params);
+                transaction.eval(ScriptsStorage.getContainsValueScript(), mapParams.getExecKey(), params);
             }
             result = transaction.exec();
         }
@@ -148,15 +151,51 @@ public class RedisCollection implements Collection<String> {
 
     @Override
     public void clear() {
-        List<String> params = new ArrayList<>();
-        params.add(mapParams.getSubCounterName());
-        params.add(mapParams.getChangeCounterName());
-        params.add(mapParams.getMapName());
-        Object res;
+        List<Object> res;
+
         try (Jedis jedis = jedisPool.getResource()) {
-            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", mapParams.getExecKey(), params);
+            Transaction transaction = jedis.multi();
+            transaction.incr(mapParams.getChangeCounterName());
+            transaction.del(mapParams.getMapName());
+            res= transaction.exec();
         }
-        if((Long)res > 0)
-            mapParams.setChangeCounter((Long)res);
+        mapParams.setChangeCounter((Long)res.get(0));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if(o == null)
+            return false;
+        if(!(o instanceof Collection))
+            return false;
+        Collection<?> collection = (Collection<?>)o;
+        Collection<String> values;
+        try (Jedis jedis = jedisPool.getResource()) {
+            values = jedis.hvals(hmapName);
+        }
+        if(values.size() != collection.size())
+            return false;
+        Iterator<?> collectionIterator = collection.iterator();
+        for(String value : values) {
+            Object collectionElement = collectionIterator.next();
+            if(collectionElement == null)
+                return false;
+
+            if(!value.equals(collectionElement))
+                return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int resultHash = 0;
+        Collection<String> values;
+        try (Jedis jedis = jedisPool.getResource()) {
+            values = jedis.hvals(hmapName);
+        }
+        for(String value : values)
+            resultHash += value.hashCode();
+        return resultHash;
     }
 }

@@ -11,13 +11,13 @@ import java.util.stream.Collectors;
  */
 public class RedisMap implements Map<String,String> {
 
-    private final String connectionIp = "127.0.0.1";
-    private final int connectionPort = 6379;
-    private final String baseKeyName = "redis_map:";
-    private final String  counterBase = "change_counter:";
-    private final String password = "sOmE_sEcUrE_pAsS";
-    private final String mapCounter = "map_counter";
-    private final String subscribersCountBase = "sub_count:";
+    private static final String connectionIp = "127.0.0.1";
+    private static final int connectionPort = 6379;
+    private static final String baseKeyName = "redis_map:";
+    private static final String  counterBase = "change_counter:";
+    private static final String password = "sOmE_sEcUrE_pAsS";
+    private static final String mapCounter = "map_counter";
+    private static final String subscribersCountBase = "sub_count:";
 
     private JedisPool jedisPool;
     private String hmapName;
@@ -32,7 +32,7 @@ public class RedisMap implements Map<String,String> {
         changeCounterName = counterBase + number.toString();
         subCountName = subscribersCountBase + number.toString();
         jedis.set(changeCounterName,  "0");
-        jedis.set(subCountName, "0");
+        jedis.set(subCountName, "1");
         hmapName = baseKeyName + number.toString();
         mapParams = new MapParams(hmapName, changeCounterName, subCountName,0L);
 
@@ -77,6 +77,9 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public boolean containsKey(Object key) {
+        if(!(key instanceof String))
+            return false;
+
         boolean doesExists;
         try (Jedis jedis = jedisPool.getResource()) {
             doesExists = jedis.hexists(hmapName, key.toString());
@@ -86,6 +89,9 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public boolean containsValue(Object value) {
+        if(!(value instanceof String))
+            return false;
+
         Object result;
         List<String> params = new ArrayList<>(1);
         params.add(value.toString());
@@ -105,11 +111,8 @@ public class RedisMap implements Map<String,String> {
         try (Jedis jedis = jedisPool.getResource()) {
              returnedValues = jedis.hmget(hmapName, key.toString());
         }
-        if(returnedValues.size() > 0)
-            return returnedValues.get(0);
-        return null;
+        return returnedValues.get(0);
     }
-
 
     @Override
     public String put(String key, String value) {
@@ -133,6 +136,9 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public String remove(Object key) {
+        if(!(key instanceof String))
+            return null;
+
         String prevValue = null;
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
@@ -150,10 +156,14 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public void putAll(Map<? extends String, ? extends String> m) {
+        if(m == null)
+            throw new NullPointerException();
+        if(m.size() == 0)
+            return;
 
         Map<String, String> values = m.entrySet().stream()
                 .filter(entry -> entry.getKey() != null && entry.getValue() != null)
-                .collect(Collectors.toMap(Map.Entry::getKey, Object::toString));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
@@ -167,17 +177,15 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public void clear() {
-        List<String> params = new ArrayList<>();
-        params.add(mapParams.getSubCounterName());
-        params.add(mapParams.getChangeCounterName());
-        params.add(mapParams.getMapName());
-        Object res;
+        List<Object> res;
 
         try (Jedis jedis = jedisPool.getResource()) {
-            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", mapParams.getExecKey(), params);
+            Transaction transaction = jedis.multi();
+            transaction.incr(mapParams.getChangeCounterName());
+            transaction.del(mapParams.getMapName());
+            res= transaction.exec();
         }
-        if((Long)res > 0)
-            mapParams.setChangeCounter((Long)res);
+        mapParams.setChangeCounter((Long)res.get(0));
     }
 
     @Override
@@ -199,6 +207,9 @@ public class RedisMap implements Map<String,String> {
     public boolean equals(Object o) {
         if(o == this)
             return true;
+        if(o == null)
+            return false;
+
         if(o instanceof Map) {
             Map<String, String> redisMap;
             try (Jedis jedis = jedisPool.getResource()) {
@@ -206,10 +217,13 @@ public class RedisMap implements Map<String,String> {
             }
             Map<?, ?> objMap = (Map)o;
             Iterator<Entry<String, String>> redisIterator = this.entrySet().iterator();
+           // Set<? extends Entry<?, ?>> objSet = objMap.entrySet();
             Iterator<? extends Entry<?, ?>> oIterator = objMap.entrySet().iterator();
+
             if(objMap.size() == redisMap.size()) {
                 if(redisIterator.hasNext()) {
                     if(!redisIterator.next().equals(oIterator.next()))
+                  //  if(!objSet.contains(redisIterator.next()))
                         return false;
                 }
                 return true;
@@ -222,6 +236,15 @@ public class RedisMap implements Map<String,String> {
 
     @Override
     public int hashCode() {
-        return hmapName.hashCode();
+        int resultHash = 0;
+        Map<String, String> redisMap;
+        try (Jedis jedis = jedisPool.getResource()) {
+            redisMap = jedis.hgetAll(hmapName);
+        }
+        for(Entry<String, String> entry : redisMap.entrySet()) {
+            resultHash += entry.getKey().hashCode();
+            resultHash += entry.getValue().hashCode();
+        }
+        return resultHash;
     }
 }

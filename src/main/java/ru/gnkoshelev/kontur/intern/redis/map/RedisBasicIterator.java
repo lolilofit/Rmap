@@ -1,9 +1,7 @@
 package ru.gnkoshelev.kontur.intern.redis.map;
 
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.ScanParams;
-import redis.clients.jedis.ScanResult;
+import redis.clients.jedis.*;
+
 import java.util.*;
 import java.util.List;
 
@@ -18,6 +16,7 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
     protected Integer localCursor = 0;
     protected MapParams mapParams;
     protected V lastElement;
+    protected Long lastChanges;
 
     public RedisBasicIterator(JedisPool jedisPool, String hmapName, MapParams mapParams) {
         this.jedisPool = jedisPool;
@@ -27,6 +26,7 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
         scanParams.count(10);
         lastElement = null;
 
+        lastChanges = mapParams.getChangeCounter();
         try(Jedis jedis = jedisPool.getResource()) {
            result = jedis.hscan(hmapName, "0", scanParams);
         }
@@ -45,7 +45,7 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
     }
 
     protected void removeWithParams(List<String> params) {
-        Long oldChangeCounter = mapParams.getChangeCounter();
+        Long oldChangeCounter = lastChanges;
         Long resultCounter;
         try (Jedis jedis = jedisPool.getResource()) {
             resultCounter = ScriptsStorage.checkUpdateWithRemove(jedis, params);
@@ -55,12 +55,14 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
             throw new IllegalStateException();
         }
         mapParams.setChangeCounter(oldChangeCounter + 1);
+        lastChanges = mapParams.getChangeCounter();
     }
 
     @Override
     public void remove() {
         if(lastElement == null)
             throw new IllegalStateException();
+
         List<String> params = new ArrayList<>(mapParams.getBasicParams());
         params.add(lastElement.toString());
         removeWithParams(params);
@@ -68,6 +70,8 @@ public abstract class RedisBasicIterator<T, V extends T> implements Iterator<T> 
 
     @Override
     public boolean hasNext() {
+        if(lastChanges != mapParams.getChangeCounter())
+            throw new IllegalStateException();
         if(redisPart.size() == 0)
             return false;
         if(localCursor == redisPart.size() && result.isCompleteIteration())

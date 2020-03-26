@@ -17,6 +17,9 @@ public class RedisValuesIterator extends RedisBasicIterator<String, String> {
 
     @Override
     public String next() {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         checkIsLast();
         Map.Entry<String, String> entry = redisPart.get(localCursor);
         lastKey = entry.getKey();
@@ -27,8 +30,12 @@ public class RedisValuesIterator extends RedisBasicIterator<String, String> {
 
     @Override
     public void remove() {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         if(lastElement == null)
             throw new IllegalStateException();
+
         List<String> params = new ArrayList<>(mapParams.getBasicParams());
         params.add(lastKey);
         removeWithParams(params);
@@ -37,6 +44,9 @@ public class RedisValuesIterator extends RedisBasicIterator<String, String> {
 
     @Override
     public void forEachRemaining(Consumer<? super String> action) {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         if(action == null)
             throw new NullPointerException();
 

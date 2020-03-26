@@ -31,6 +31,9 @@ public class RedisEntry implements Map.Entry<String, String> {
 
     @Override
     public String setValue(String s) {
+        if(s == null)
+            throw  new NullPointerException();
+
         String oldValue = value;
         this.value = s;
         try(Jedis jedis = jedisPool.getResource()) {
@@ -63,6 +66,6 @@ public class RedisEntry implements Map.Entry<String, String> {
 
     @Override
     public int hashCode() {
-        return key.hashCode();
+        return key.hashCode() + value.hashCode();
     }
 }

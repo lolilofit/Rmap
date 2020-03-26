@@ -14,13 +14,16 @@ public class Main {
         redisMap1.put("2", "value2");
 
         System.out.println(redisMap.equals(redisMap1));
-*/
+
         RedisMap redisMap = new RedisMap();
         System.out.println(redisMap.put("1", "value1"));
         System.out.println(redisMap.put("2", "value2"));
         System.out.println(redisMap.put("1", "chahgedValue"));
         System.out.println(redisMap.put("3", "value2"));
 
+
+         */
+        /*
         Collection<String> values = redisMap.values();
         Iterator<String> vit = values.iterator();
         while(vit.hasNext()) {
@@ -56,6 +59,8 @@ public class Main {
         while(iter.hasNext()) {
             System.out.println(iter.next());
         }
+
+         */
     }
 
     public static void main(String[] args) {
@@ -71,7 +76,24 @@ public class Main {
         v.put("1", "changed");
         v.put("3", "pro");
         v.put("2", "valll");
-        v.put("4", "pro");
+        //v.put("4", "pro");
+
+        Set<Map.Entry<String, String>> entrySet = v.entrySet();
+        System.out.println(entrySet.contains("1"));
+
+        Set<String> keys = v.keySet();
+        String[] ar = new String[6];
+        String[] a = keys.toArray(ar);
+        a = keys.toArray(ar);
+        System.out.println("");
+
+
+ */
+        /*
+        Map<String, String> v1= new HashMap<>();
+        v1.put("1", "changed");
+        Map.Entry<String, String> entry = v1.entrySet().iterator().next();
+        v.remove(entry);
 
         Collection<String> values = v.values();
         Set<String> cv = new LinkedHashSet<>();

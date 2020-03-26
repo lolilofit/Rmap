@@ -17,12 +17,24 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
         this.mapParams = mapParams;
     }
 
+    private String getKeyToRemove(Object o) {
+        if(o instanceof String)
+            return (String)o;
+        if(o instanceof Map.Entry)
+            return ((Map.Entry<?, ?>)o).getKey().toString();
+        return null;
+    }
+
     @Override
     public boolean remove(Object o) {
         Long changedCount;
+        String key = getKeyToRemove(o);
+        if(key == null)
+            return false;
+
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
-            transaction.hdel(hmapName, o.toString());
+            transaction.hdel(hmapName, key);
             transaction.incr(mapParams.getChangeCounterName());
             List<Object> result = transaction.exec();
             changedCount = (Long) result.get(0);
@@ -39,52 +51,27 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
             transaction.incr(mapParams.getChangeCounterName());
             for (Object o : collection)
                 transaction.hdel(hmapName, o.toString());
-            result = transaction.exec();
+                result = transaction.exec();
         }
         mapParams.setChangeCounter((Long) result.get(0));
         for(int i = 1; i < result.size(); i++) {
-            if((Integer)result.get(i) > 0)
+            if((Long)result.get(i) > 0)
                 return true;
         }
         return false;
     }
 
     @Override
-    public boolean containsAll(Collection<?> collection) {
-        if(collection == null)
-            throw new NullPointerException();
+    public void clear() {
+        List<Object> res;
 
-        boolean answer = true;
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
-            Iterator<?> iter = collection.iterator();
-            while (iter.hasNext()) {
-                Object value = iter.next();
-                if(value == null) {
-                    transaction.exec();
-                    return false;
-                }
-                transaction.hexists(hmapName, value.toString());
-            }
-            List<Object> result = transaction.exec();
-            for(int i = 0; i < result.size(); i++)
-                answer = answer && (Boolean)result.get(i);
+            transaction.incr(mapParams.getChangeCounterName());
+            transaction.del(mapParams.getMapName());
+            res= transaction.exec();
         }
-        return answer;
-    }
-
-    @Override
-    public void clear() {
-        List<String> params = new ArrayList<>();
-        params.add(mapParams.getSubCounterName());
-        params.add(mapParams.getChangeCounterName());
-        params.add(mapParams.getMapName());
-        Object res;
-        try (Jedis jedis = jedisPool.getResource()) {
-            res = jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"del\", ARGV[3]) redis.call(\"incr\", ARGV[2]) end return -1", mapParams.getExecKey(), params);
-        }
-        if((Long)res > 0)
-            mapParams.setChangeCounter((Long)res);
+        mapParams.setChangeCounter((Long)res.get(0));
     }
 
     @Override
@@ -104,15 +91,6 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
     }
 
     @Override
-    public boolean contains(Object o) {
-        boolean doesExists;
-        try (Jedis jedis = jedisPool.getResource()) {
-            doesExists = jedis.hexists(hmapName, o.toString());
-        }
-        return doesExists;
-    }
-
-    @Override
     public boolean add(Object o) {
         throw new UnsupportedOperationException();
     }
@@ -122,20 +100,51 @@ public abstract class RedisBasicSet<T, V extends T> implements Set<T> {
         throw new UnsupportedOperationException();
     }
 
+    protected abstract Set<Object> getAll();
+
     @Override
     public boolean equals(Object o) {
+        if(o == null)
+            return false;
+
         if(o instanceof Set) {
-            try (Jedis jedis = jedisPool.getResource()) {
-                Set<String> keys = jedis.hkeys(hmapName);
-                return o.equals(keys);
+            //Set<String> keys;
+            //try (Jedis jedis = jedisPool.getResource()) {
+            //   keys = jedis.hkeys(hmapName);
+           // }
+            Set<Object> set = this.getAll();
+            if(set == null)
+                return false;
+
+            Set<?> objSet = (Set<?>) o;
+            if(set.size() == objSet.size()) {
+                Iterator<?> objIterator = objSet.iterator();
+                for (Object element : set) {
+                    Object objValue = objIterator.next();
+                    if(objValue == null)
+                        return false;
+
+                    if (!objSet.contains(element))
+                        return false;
+                }
+                return true;
             }
+            else
+                return false;
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return  hmapName.hashCode();
+        int resultCode = 0;
+        Set<String> keys;
+        try (Jedis jedis = jedisPool.getResource()) {
+            keys = jedis.hkeys(hmapName);
+        }
+        for(String key : keys) {
+            resultCode += key.hashCode();
+        }
+        return resultCode;
     }
-
 }

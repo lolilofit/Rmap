@@ -23,6 +23,12 @@ public class ScriptsStorage {
         String containsValue = "local val = ARGV[1] local values = redis.call(\"HVALS\", ARGV[2]) for i, name in ipairs(values) do if name == val then return 1 end end return 0";
         modScriptMap.put("containsValue", containsValue);
 
+        String removeByValue = "local map = redis.call(\"HGETALL\", ARGV[2]) local val = ARGV[1] local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else if(v == val) then return redis.call(\"HDEL\", ARGV[2], key) end end end return 0";
+        modScriptMap.put("removeByValue", removeByValue);
+
+        String removeByCollection = "local cnt = 0 local map = redis.call(\"HGETALL\", ARGV[1])  local key for i, v in ipairs(map) do if i % 2 == 1 then key = v else for j = 2, #ARGV, 1 do if(v == ARGV[j]) then cnt = cnt + redis.call(\"HDEL\", ARGV[1], key) end end end end return cnt";
+        modScriptMap.put("removeByCollection", removeByCollection);
+
         scripts = Collections.unmodifiableMap(modScriptMap);
         keyParam = new ArrayList<>(1);
         keyParam.add("0");
@@ -35,5 +41,13 @@ public class ScriptsStorage {
 
     public static String getContainsValueScript() {
         return scripts.get("containsValue");
+    }
+
+    public static String getRemoveByValueScript() {
+        return scripts.get("removeByValue");
+    }
+
+    public static String getRemoveByCollectionScript() {
+        return scripts.get("removeByCollection");
     }
 }

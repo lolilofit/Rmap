@@ -13,6 +13,9 @@ public class RedisKeyIterator extends RedisBasicIterator<String, String> {
 
     @Override
     public String next() {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         checkIsLast();
         String resultKey = redisPart.get(localCursor).getKey();
         lastElement = resultKey;
@@ -22,6 +25,8 @@ public class RedisKeyIterator extends RedisBasicIterator<String, String> {
 
     @Override
     public void forEachRemaining(Consumer<? super String> action) {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
         if(action == null)
             throw new NullPointerException();
 

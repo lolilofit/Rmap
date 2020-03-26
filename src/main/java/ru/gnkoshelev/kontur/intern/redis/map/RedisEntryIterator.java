@@ -13,6 +13,9 @@ public class RedisEntryIterator extends RedisBasicIterator<Map.Entry<String, Str
 
     @Override
     public Map.Entry<String, String> next() {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         checkIsLast();
         Map.Entry<String, String> entry = redisPart.get(localCursor);
         lastElement = new RedisEntry(entry.getKey(), entry.getValue(), jedisPool, mapParams);
@@ -22,6 +25,9 @@ public class RedisEntryIterator extends RedisBasicIterator<Map.Entry<String, Str
 
     @Override
     public void forEachRemaining(Consumer<? super Map.Entry<String, String>> action) {
+        if(!lastChanges.equals(mapParams.getChangeCounter()))
+            throw new IllegalStateException();
+
         if (action == null)
             throw new NullPointerException();
 
