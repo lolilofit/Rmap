@@ -15,7 +15,7 @@ public class RedisMap implements Map<String,String> {
     private static final String connectionIp = "127.0.0.1";
     private static final int connectionPort = 6379;
     private static final String baseKeyName = "redis_map:";
-    private static final String  counterBase = "change_counter:";
+    private static final String counterBase = "change_counter:";
     private static final String password = "sOmE_sEcUrE_pAsS";
     private static final String mapCounter = "map_counter";
     private static final String subscribersCountBase = "sub_count:";
@@ -26,14 +26,18 @@ public class RedisMap implements Map<String,String> {
     private String changeCounterName;
     private MapParams mapParams;
     private List<String> keysParam;
+    private String actualName;
 
     private void makeNewMap(Jedis jedis) {
 
         Long number = jedis.incr(mapCounter);
+        actualName = number.toString();
         changeCounterName = counterBase + number.toString();
         subCountName = subscribersCountBase + number.toString();
+
         jedis.set(changeCounterName,  "0");
         jedis.set(subCountName, "1");
+
         hmapName = baseKeyName + number.toString();
         mapParams = new MapParams(hmapName, changeCounterName, subCountName,0L);
 
@@ -45,7 +49,7 @@ public class RedisMap implements Map<String,String> {
         Runtime.getRuntime().addShutdownHook(new Thread(redisMapCleanup));
     }
 
-    RedisMap() {
+    public RedisMap() {
         jedisPool = new JedisPool(connectionIp, connectionPort);
 
         try (Jedis jedis = jedisPool.getResource()) {
@@ -59,6 +63,25 @@ public class RedisMap implements Map<String,String> {
         keysParam.add("0");
     }
 
+    public RedisMap(String mapKey) {
+        jedisPool = new JedisPool(connectionIp, connectionPort);
+        changeCounterName = counterBase + mapKey;
+        subCountName = subscribersCountBase + mapKey;
+        hmapName = baseKeyName + mapKey;
+        Long changesCounter;
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.auth(password);
+            jedis.incr(subCountName);
+            changesCounter = Long.valueOf(jedis.get(changeCounterName));
+        }
+
+        mapParams = new MapParams(hmapName, changeCounterName, subCountName,changesCounter);
+        registerCleaner();
+        System.out.println(hmapName);
+        keysParam = new ArrayList<>(1);
+        keysParam.add("0");
+    }
 
     @Override
     public int size() {
@@ -253,5 +276,10 @@ public class RedisMap implements Map<String,String> {
             resultHash += entry.getValue().hashCode();
         }
         return resultHash;
+    }
+
+    @Override
+    public String toString() {
+        return actualName;
     }
 }

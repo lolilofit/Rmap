@@ -45,6 +45,35 @@ public class RedisMapTest {
     }
 
     @Test
+    public void severalUsersTest() {
+        Map<String, String> map1 = new RedisMap();
+
+        map1.put("one", "1");
+
+        Map<String, String> map2 = new RedisMap(map1.toString());
+
+        Assert.assertEquals(map1.size(), map2.size());
+        Assert.assertTrue(map2.containsKey("one"));
+        Assert.assertTrue(map2.containsValue("1"));
+
+        map2.put("two", "2");
+
+        Assert.assertTrue(map2.containsKey("two"));
+        Assert.assertTrue(map2.containsValue("2"));
+
+        Assert.assertTrue(map1.containsKey("two"));
+        Assert.assertTrue(map1.containsValue("2"));
+
+        map2.remove("two");
+
+        Assert.assertFalse(map2.containsKey("two"));
+        Assert.assertFalse(map2.containsValue("2"));
+
+        Assert.assertFalse(map1.containsKey("two"));
+        Assert.assertFalse(map1.containsValue("2"));
+    }
+
+    @Test
     public void emptyMapTest() {
         Map<String, String> map = new RedisMap();
 
