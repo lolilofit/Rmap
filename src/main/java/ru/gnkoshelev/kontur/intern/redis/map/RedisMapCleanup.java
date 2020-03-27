@@ -2,6 +2,7 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,7 +32,7 @@ public class RedisMapCleanup implements Runnable {
         if(isExecuted.compareAndSet(false, true)) {
             try (Jedis jedis = jedisPool.getResource()) {
                 System.out.println(redisKey + " Cleanup");
-                jedis.eval("local c = redis.call(\"decr\", ARGV[1]) if(c == 0) then redis.call(\"incr\", ARGV[2]) redis.call(\"del\", ARGV[3]) end return", execKey, params);
+                jedis.eval(ScriptsStorage.getCleanMapScript(), execKey, params);
             }
         }
     }

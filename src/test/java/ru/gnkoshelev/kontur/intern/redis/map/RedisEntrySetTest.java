@@ -77,15 +77,9 @@ public class RedisEntrySetTest {
 
         map.put("one", "1");
         map.put("two", "2");
-        map.put("three", "3");
 
-        List<String> list = new ArrayList<>();
-        list.add("one");
-        list.add("two");
-        entrySet.removeAll(list);
-
-        Assert.assertFalse(map.containsKey("one"));
-        Assert.assertFalse(map.containsKey("two"));
+        Assert.assertTrue(map.containsKey("one"));
+        Assert.assertTrue(map.containsKey("two"));
 
         entrySet.clear();
         Assert.assertEquals(map.size(), 0);
@@ -321,5 +315,52 @@ public class RedisEntrySetTest {
         Assert.assertEquals(map1.entrySet().hashCode(), map2.entrySet().hashCode());
 
         Assert.assertNotEquals(map1.entrySet().hashCode(), map3.entrySet().hashCode());
+    }
+
+    @Test
+    public void removeAllTest() {
+        Map<String, String> map1 = new RedisMap();
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+
+        Map<String, String> map3 = new RedisMap();
+        map3.put("one", "1");
+
+        Set<Map.Entry<String, String>> entrySet = map1.entrySet();
+
+        List<Map.Entry<String, String>> list = new ArrayList<>();
+        Iterator<Map.Entry<String, String>> iterator = map3.entrySet().iterator();
+        list.add(iterator.next());
+
+        entrySet.removeAll(list);
+
+        Assert.assertFalse(map1.containsKey("one"));
+        Assert.assertTrue(map1.containsKey("two"));
+        Assert.assertTrue(map1.containsKey("three"));
+    }
+
+
+    @Test
+    public void retainAllTest() {
+        Map<String, String> map1 = new RedisMap();
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+
+        Map<String, String> map3 = new RedisMap();
+        map3.put("one", "1");
+
+        Set<Map.Entry<String, String>> entrySet = map1.entrySet();
+
+        List<Map.Entry<String, String>> list = new ArrayList<>();
+        Iterator<Map.Entry<String, String>> iterator = map3.entrySet().iterator();
+        list.add(iterator.next());
+
+        entrySet.retainAll(list);
+
+        Assert.assertTrue(map1.containsKey("one"));
+        Assert.assertFalse(map1.containsKey("two"));
+        Assert.assertFalse(map1.containsKey("three"));
     }
 }

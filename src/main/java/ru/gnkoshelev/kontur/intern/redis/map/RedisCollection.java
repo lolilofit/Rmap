@@ -146,6 +146,28 @@ public class RedisCollection implements Collection<String> {
 
     @Override
     public boolean retainAll(Collection<?> collection) {
+        if(collection == null)
+            throw new NullPointerException();
+
+        Object result;
+        List<String> params = new ArrayList<>(2);
+        params.add(hmapName);
+        params.add(mapParams.getChangeCounterName());
+
+        for (Object o : collection) {
+            if(o != null) {
+                params.add(o.toString());
+            }
+        }
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            result = jedis.eval(ScriptsStorage.getRetainAllValueScript(), mapParams.getExecKey(), params);
+        }
+
+        if((Long)result > 0) {
+            mapParams.setChangeCounter((Long) result);
+            return true;
+        }
         return false;
     }
 

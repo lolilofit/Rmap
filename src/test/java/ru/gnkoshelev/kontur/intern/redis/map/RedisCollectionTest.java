@@ -289,4 +289,21 @@ public class RedisCollectionTest {
         Assert.assertNotEquals(map1.values().hashCode(), map3.values().hashCode());
     }
 
+    @Test
+    public void retainAllTest() {
+        Map<String, String> map1 = new RedisMap();
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+        Collection<String> values = map1.values();
+
+        List<String> list = new ArrayList<>();
+        list.add("1");
+
+        values.retainAll(list);
+
+        Assert.assertTrue(map1.containsKey("one"));
+        Assert.assertFalse(map1.containsKey("two"));
+        Assert.assertTrue(map1.containsKey("three"));
+    }
 }

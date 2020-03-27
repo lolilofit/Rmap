@@ -3,6 +3,7 @@ package ru.gnkoshelev.kontur.intern.redis.map;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.Transaction;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -139,17 +140,23 @@ public class RedisMap implements Map<String,String> {
         if(!(key instanceof String))
             return null;
 
+        List<String> params = new ArrayList<>();
+        params.add(hmapName);
+        params.add(key.toString());
+        params.add(mapParams.getChangeCounterName());
+
         String prevValue = null;
         try (Jedis jedis = jedisPool.getResource()) {
             Transaction transaction = jedis.multi();
+            transaction.eval(ScriptsStorage.getTestAndIncrScript(), mapParams.getExecKey(), params);
             transaction.hget(hmapName, key.toString());
             transaction.hdel(hmapName, key.toString());
-            transaction.incr(changeCounterName);
             List<Object> result = transaction.exec();
 
-            mapParams.setChangeCounter(Long.valueOf(result.get(2).toString()));
-            if(result.get(0) != null)
-                prevValue = result.get(0).toString();
+            if((Long)result.get(2) > 0)
+                mapParams.setChangeCounter(mapParams.getChangeCounter() + 1);
+            if(result.get(1) != null)
+                prevValue = result.get(1).toString();
         }
         return prevValue;
     }

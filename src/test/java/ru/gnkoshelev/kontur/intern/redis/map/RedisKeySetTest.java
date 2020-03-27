@@ -278,4 +278,22 @@ public class RedisKeySetTest {
 
         Assert.assertNotEquals(map1.entrySet().hashCode(), map3.entrySet().hashCode());
     }
+
+    @Test
+    public void retainAllTest() {
+        Map<String, String> map1 = new RedisMap();
+        map1.put("one", "1");
+        map1.put("two", "2");
+        map1.put("three", "1");
+        Set<String> entrySet = map1.keySet();
+
+        List<String> list = new ArrayList<>();
+        list.add("one");
+
+        entrySet.retainAll(list);
+
+        Assert.assertTrue(map1.containsKey("one"));
+        Assert.assertFalse(map1.containsKey("two"));
+        Assert.assertFalse(map1.containsKey("three"));
+    }
 }

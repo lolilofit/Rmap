@@ -81,9 +81,4 @@ public class RedisKeySet extends RedisBasicSet<String, String> {
         }
         return new LinkedHashSet<>(set);
     }
-
-    @Override
-    public boolean retainAll(Collection<?> collection) {
-        return false;
-    }
 }

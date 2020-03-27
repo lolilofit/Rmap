@@ -96,9 +96,4 @@ public class RedisEntrySet extends RedisBasicSet<Map.Entry<String, String>, Redi
         }
         return answer;
     }
-
-    @Override
-    public boolean retainAll(Collection<?> collection) {
-        return false;
-    }
 }
